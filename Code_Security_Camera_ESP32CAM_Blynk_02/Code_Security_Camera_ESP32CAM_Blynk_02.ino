@@ -1,4 +1,4 @@
- /**********************************************************************************
+/**********************************************************************************
  *  Preferences--> Aditional boards Manager URLs : https://dl.espressif.com/dl/package_esp32_index.json, http://arduino.esp8266.com/stable/package_esp8266com_index.json
  *  Board Settings:
  *  Board: "ESP32 Wrover Module"
@@ -21,11 +21,10 @@
 #include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
 #include "soc/soc.h"           // Disable brownour problems
-#include "soc/rtc_cntl_reg.h"  // Disable brownour 
+#include "soc/rtc_cntl_reg.h"  // Disable brownour
 #include <SoftwareSerial.h>
-#define RX 14
-#define TX 15
-SoftwareSerial simA800Serial(RX, TX); // Chân TX và RX của ESP32-CAM
+
+SoftwareSerial simA800Serial(14, 15);  // Chân RX và TX
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
 //            Ensure ESP32 Wrover Module or other board with PSRAM is selected
@@ -33,43 +32,41 @@ SoftwareSerial simA800Serial(RX, TX); // Chân TX và RX của ESP32-CAM
 //
 
 // Select camera model
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+#define CAMERA_MODEL_AI_THINKER  // Has PSRAM
 
 #include "camera_pins.h"
 
-#define PIR 13
+#define PIR 13 
 #define PHOTO 14
 #define LED 4
 #define VOL 12
 
-const char* ssid = "193T";//WIFI NAME
-const char* password = "66668888"; //WIFI PASSWORD
+const char* ssid = "193T";                         //WIFI NAME
+const char* password = "66668888";                 //WIFI PASSWORD
 char auth[] = "kVbpFqaXlzFt3HtLyP_UiwJxe9S2mMkb";  //AUTH TOKEN sent by Blynk
-
+int button_blynk_open = 1;
 String local_IP;
 
 void startCameraServer();
 
-void takePhoto()
-{
+void takePhoto() {
   digitalWrite(LED, HIGH);
   delay(200);
   uint32_t randomNum = random(50000);
-  Serial.println("http://"+local_IP+"/capture?_cb="+ (String)randomNum);
-  Blynk.setProperty(V1, "urls", "http://"+local_IP+"/capture?_cb="+(String)randomNum);
+  Serial.println("http://" + local_IP + "/capture?_cb=" + (String)randomNum);
+  Blynk.setProperty(V1, "urls", "http://" + local_IP + "/capture?_cb=" + (String)randomNum);
   digitalWrite(LED, LOW);
   delay(1000);
 }
 
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);  //disable brownout detector
   Serial.begin(115200);
-  simA800Serial.begin(115200);
-  pinMode(LED,OUTPUT);
+  pinMode(LED, OUTPUT);
   pinMode(VOL, OUTPUT);
   Serial.setDebugOutput(true);
   Serial.println();
-  
+
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -91,10 +88,10 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  
+
   // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
   //                      for larger pre-allocated frame buffer.
-  if(psramFound()){
+  if (psramFound()) {
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
@@ -111,17 +108,17 @@ void setup() {
     return;
   }
 
-  sensor_t * s = esp_camera_sensor_get();
+  sensor_t* s = esp_camera_sensor_get();
   // initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1); // flip it back
-    s->set_brightness(s, 1); // up the brightness just a bit
-    s->set_saturation(s, -2); // lower the saturation
+    s->set_vflip(s, 1);        // flip it back
+    s->set_brightness(s, 1);   // up the brightness just a bit
+    s->set_saturation(s, -2);  // lower the saturation
   }
   // drop down frame size for higher initial frame rate
   s->set_framesize(s, FRAMESIZE_QVGA);
 
-  WiFi.begin(ssid,password);
+  WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -143,27 +140,49 @@ void loop() {
   Serial.println("Trang thai bay h la ");
   Serial.println(motionDetected);
   Blynk.run();
-  if(motionDetected == HIGH ){
-  Serial.println("Send Notification");
-  Blynk.logEvent("Alert: Some one has been here");
-  Blynk.logEvent("hello", "Co nguoi vao anh em oi ") ;
-  Serial.println("Capture Photo");
-  takePhoto();
-  digitalWrite(VOL, HIGH);
-    simA800Serial.println("AT+CMGF=1"); // Chuyển sang chế độ văn bản
+  if (motionDetected == HIGH) {
+    button_blynk_open = 0;
+    Serial.println("Send Notification");
+    Blynk.logEvent("Alert: Some one has been here");
+    Blynk.logEvent("hello", "Co nguoi vao anh em oi ");
+    Serial.println("Capture Photo");
+    takePhoto();
+    simA800Serial.println("AT+CMGF=1");  // Chuyển sang chế độ văn bản
     delay(1000);
-    simA800Serial.print("AT+CMGS=\"+84964651146\"\r"); // Số điện thoại nhận SMS
+    simA800Serial.print("AT+CMGS=\"+84964651146\"\r");  // Số điện thoại nhận SMS
     delay(1000);
-    simA800Serial.println("Chuyen dong da phat hien!"); // Nội dung SMS
+    simA800Serial.println("Chuyen dong da phat hien!");  // Nội dung SMS
     delay(1000);
-    simA800Serial.println((char)26); // Kích thước (Ctrl+Z)
+    simA800Serial.println((char)26);  // Kích thước (Ctrl+Z)
     delay(1000);
-  delay(3000);
-  }else{
-    digitalWrite(VOL, LOW);
   }
-  // if(digitalRead(PHOTO) == HIGH){
-  // Serial.println("Capture Photo");
-  // takePhoto();
-  // }  
+
+  if (button_blynk_open == 1) {
+    digitalWrite(VOL, LOW);
+  } else {
+    digitalWrite(VOL, HIGH);
+  }
+}
+
+void GOI() {
+  simA800Serial.println("AT");  // chưa sử dụng
+  delay(300);
+  simA800Serial.print("ATD");
+  simA800Serial.print("+84964651146");
+  simA800Serial.println(";");
+  delay(15000);
+  simA800Serial.println("ATH");
+}
+
+BLYNK_WRITE(V1)  //chân ảo V1 gán cho nút bấm
+{
+  int buttonState = param.asInt();
+  if (buttonState == 1) {
+    button_blynk_open = 1;  //nút ở Blynk được bấm
+  }
+}
+
+BLYNK_CONNECTED() {
+  Serial.print("BLYNK SERVER CONNECTED !!!");  // Blynk.syncAll();
+  Blynk.syncVirtual(V1);                       // nút tắt loa
 }
